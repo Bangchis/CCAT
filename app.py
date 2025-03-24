@@ -1,3 +1,7 @@
+import io
+from flask import send_file
+import matplotlib.pyplot as plt
+import matplotlib
 import os
 import json
 import numpy as np
@@ -91,17 +95,6 @@ def load_preprocessed_question_metadata():
     valid_q_ids = sorted(qmeta.keys())
     return qmeta, valid_q_ids
 
-# --- Hàm Loss dùng Binary Cross-Entropy (BCE) để cập nhật theta ---
-
-
-# --- Hàm cập nhật theta theo phương pháp EMA (dựa trên phản hồi của câu hỏi hiện tại) ---
-
-
-# --- Hàm cập nhật theta với cơ chế damping (truy thu toàn bộ phản hồi, vẫn giữ logic cũ) ---
-
-
-# --- Endpoint trang chủ ---
-
 
 @app.route('/')
 def index():
@@ -152,6 +145,10 @@ def question():
     else:
         subject_list = subjects_raw
 
+    # Lấy thứ hạng hiện tại và tổng số anchor từ session
+    current_rank = session.get("current_rank", 0)
+    total_anchor = session.get("total_anchor", 0)
+
     return render_template("question.html",
                            qid=next_qid,
                            image_url=image_url,
@@ -159,7 +156,10 @@ def question():
                            subjects=subject_list,
                            current_index=current_index+1,
                            total=total_questions,
-                           current_theta=current_theta)
+                           current_theta=current_theta,
+                           current_rank=current_rank,
+                           total_anchor=total_anchor)
+
 
 # --- Endpoint xử lý đáp án và cập nhật theta ---
 
@@ -172,56 +172,55 @@ def submit():
     correct_answer = question_meta.get(
         current_qid, {}).get("correct_answer", "")
 
-    print("DEBUG: User Answer:", user_answer)
-    print("DEBUG: Correct Answer:", correct_answer)
-
+    # So sánh đáp án và cập nhật điểm
     is_correct = 1 if user_answer == correct_answer else 0
-    score = session.get("score", 0)
-    if is_correct:
-        score += 1
-    session["score"] = score
+    session["score"] = session.get("score", 0) + is_correct
 
-    # Cập nhật các danh sách theo dõi đáp án và thông tin câu hỏi đã trả lời
-    answered = session.get("answered_questions", [])
-    responses = session.get("responses", [])
-    a_list = session.get("a_list", [])
-    b_list = session.get("b_list", [])
-
+    # Cập nhật history trả lời
+    answered = session.setdefault("answered_questions", [])
     answered.append(current_qid)
+    responses = session.setdefault("responses", [])
     responses.append(is_correct)
-    gamma = app.config.get("GAMMA")
-    beta = app.config.get("BETA")
+
+    # Cập nhật tham số IRT
+    a_list = session.setdefault("a_list", [])
+    b_list = session.setdefault("b_list", [])
+    gamma = app.config["GAMMA"]
+    beta = app.config["BETA"]
     a_list.append(gamma[current_qid])
     b_list.append(beta[current_qid])
 
-    session["answered_questions"] = answered
-    session["responses"] = responses
-    session["a_list"] = a_list
-    session["b_list"] = b_list
-
-    # Cập nhật danh sách câu hỏi chưa trả lời
-    unanswered = session.get("unanswered", [])
+    # Xóa câu hỏi đã trả lời khỏi unanswered
+    unanswered = session.setdefault("unanswered", [])
     if current_qid in unanswered:
         unanswered.remove(current_qid)
-    session["unanswered"] = unanswered
 
-    # Lấy theta hiện tại của người thi
-    current_theta = session.get("current_theta")
-
-    # Lấy danh sách theta của anchor group từ cấu hình ứng dụng
-    anchor_thetas = app.config.get("ANCHOR_THETAS")
-    if anchor_thetas is None:
-        # Nếu chưa có, bạn cần tính toán và lưu vào app.config trong quá trình khởi tạo phiên thi.
-        anchor_thetas = np.array([])
-
-    # Cập nhật theta của người thi dựa trên composite loss (IRT loss + ranking loss)
-
+    # Update theta theo CCAT
+    current_theta = session.get("current_theta", 0.0)
+    anchor_thetas = app.config.get("ANCHOR_THETAS", np.array([]))
+    from utils.theta_updater import update_theta_ccat
     new_theta = update_theta_ccat(current_theta, responses, a_list, b_list, anchor_thetas,
-                                  lambda_reg=0.01, lambda_ranking=0.3, damping=0.8)
+                                  lambda_reg=0.005, lambda_ranking=0.5, damping=0.5)
     session["current_theta"] = new_theta
 
-    current_index = session.get("current_index", 0)
-    session["current_index"] = current_index + 1
+    # Tính thứ hạng (ranking)
+    if anchor_thetas.size:
+        rank = sum(1 for x in anchor_thetas if x > new_theta) + \
+            1  # điểm cao là rank thấp
+
+        session["current_rank"] = rank
+        session["total_anchor"] = len(anchor_thetas)
+    else:
+        session["current_rank"] = 1
+        session["total_anchor"] = 1
+
+    # Lưu ranking measure (delta so với mean anchor)
+    anchor_mean = np.mean(anchor_thetas) if anchor_thetas.size else 0.0
+    delta = new_theta - anchor_mean
+    ranking_history = session.setdefault("ranking_history", [])
+    ranking_history.append(delta)
+
+    session["current_index"] = session.get("current_index", 0) + 1
     return redirect(url_for("question"))
 
 
@@ -234,6 +233,37 @@ def result():
     total = session.get("current_index", 0)
     final_theta = session.get("current_theta", 0)
     return render_template("result.html", score=score, total=total, final_theta=final_theta)
+
+
+matplotlib.use('Agg')
+
+
+@app.route('/ranking_plot.png')
+def ranking_plot():
+    history = session.get("ranking_history", [])
+
+    if not history:
+        history = [0]
+
+    fig, ax = plt.subplots(figsize=(3, 3))  # nhỏ gọn hơn
+    x_vals = list(range(1, len(history) + 1))
+    ax.plot(x_vals, history, marker='o', linewidth=2, color="#007BFF")
+
+    ax.set_title("Δθ so với anchor", fontsize=8)
+    ax.set_xlabel("Câu hỏi", fontsize=7)
+    ax.set_ylabel("Δθ", fontsize=7)
+    ax.tick_params(axis='both', labelsize=6)
+
+    ax.set_ylim(-3, 3)  # giữ tỉ lệ ổn định cho mọi phiên
+    ax.set_xlim(1, max(5, len(history)))  # tránh "đè" vào trục
+
+    plt.tight_layout(pad=1.0)
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=100)
+    buf.seek(0)
+    plt.close(fig)
+    return send_file(buf, mimetype='image/png')
 
 
 if __name__ == '__main__':

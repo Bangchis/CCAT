@@ -85,7 +85,7 @@ def update_theta(current_theta, responses, a_list, b_list):
 
 
 def update_theta_ccat(current_theta, responses, a_list, b_list, anchor_thetas,
-                      lambda_reg=0.01, lambda_ranking=0.1, damping=0.9):
+                      lambda_reg=0.01, lambda_ranking=0.1, damping=0.4):
     responses_arr = np.array(responses)
     a_arr = np.array(a_list)
     b_arr = np.array(b_list)

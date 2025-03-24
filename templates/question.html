@@ -4,11 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Câu Hỏi CCAT Demo</title>
-    <!-- Bootstrap 5 CSS -->
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Arial&display=swap" rel="stylesheet">
-    <!-- CSS tùy chỉnh -->
     <style>
         body {
             font-family: 'Arial', sans-serif;
@@ -20,6 +17,7 @@
             margin: 0;
         }
         .container {
+            position: relative;
             background-color: #fff;
             padding: 30px;
             border-radius: 10px;
@@ -27,88 +25,71 @@
             max-width: 800px;
             width: 100%;
         }
-        h1 {
-            font-size: 24px;
-            margin-bottom: 20px;
-            color: #007BFF;
+        h1 { font-size: 24px; color: #007BFF; }
+        img { transition: transform .3s ease; }
+        img:hover { transform: scale(1.02); }
+        .fade-in { animation: fadeIn 0.5s ease-in-out forwards; opacity: 0; }
+        @keyframes fadeIn { to { opacity: 1; } }
+        /* Ranking card */
+        .ranking-card {
+            position: absolute;
+            bottom: 20px; /* đổi từ top → bottom */
+            right: 20px;
+            width: 160px;
+            padding: 12px;
+            border-radius: 8px;
+            background: #f1f7ff;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            text-align: center;
+            animation: fadeIn 0.5s ease-in-out forwards;
+            opacity: 0;
         }
-        img {
-            max-height: 400px;
-            transition: transform 0.3s ease;
+        
+        .ranking-card h5 {
+            margin-bottom: .5rem;
+            color: #0056b3;
         }
-        img:hover {
-            transform: scale(1.02);
+        .ranking-card img {
+            width: 100%;
+            max-height: 80px;
+            object-fit: contain;
+            border-radius: 4px;
         }
-        .form-check {
-            margin-bottom: 15px;
-        }
-        .form-check-label {
-            font-size: 18px;
-            transition: color 0.3s ease;
-        }
-        .form-check-input:checked + .form-check-label {
-            color: #007BFF;
-            font-weight: bold;
-        }
-        .form-check:hover .form-check-label {
-            color: #007BFF;
-        }
-        .btn-primary {
-            font-size: 18px;
-            padding: 10px 20px;
-            transition: background-color 0.3s ease;
-            background-color: #007BFF;
-            border-color: #007BFF;
-            border-radius: 10px;
-        }
-        .btn-primary:hover {
-            background-color: #0056b3;
-            border-color: #0056b3;
-        }
-        .theta-info {
-            font-size: 16px;
-            color: #6c757d;
-            margin-top: 20px;
-        }
+        
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- Ranking & Chart (Top-right) -->
+        <div class="ranking-card fade-in">
+            <h5>Thứ hạng: {{ current_rank }} / {{ total_anchor }}</h5>
+            <img src="{{ url_for('ranking_plot') }}?v={{ current_index }}" alt="Ranking Chart" id="ranking-chart" class="img-fluid">
+        </div>
+
         <h1 class="text-center">Câu hỏi {{ current_index }} / {{ total }}</h1>
-        <div class="text-center mb-4">
+        <div class="text-center mb-4 fade-in" style="animation-delay:0.2s;">
             <img src="{{ image_url }}" alt="Câu hỏi {{ qid }}" class="img-fluid">
         </div>
-        <div class="mb-4">
+        <div class="mb-4 fade-in" style="animation-delay:0.3s;">
             <h3>Thông tin câu hỏi:</h3>
             <p>Chủ đề: {{ subjects | join(', ') }}</p>
         </div>
-        <div class="mb-4">
+        <div class="mb-4 fade-in" style="animation-delay:0.4s;">
             <h3>Chọn đáp án của bạn:</h3>
             <form action="{{ url_for('submit') }}" method="post">
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="answer" value="A" id="answerA" required>
-                    <label class="form-check-label" for="answerA">A</label>
+                {% for option in ['A','B','C','D'] %}
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="radio" name="answer" value="{{ option }}" id="answer{{ option }}" required>
+                    <label class="form-check-label" for="answer{{ option }}">{{ option }}</label>
                 </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="answer" value="B" id="answerB" required>
-                    <label class="form-check-label" for="answerB">B</label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="answer" value="C" id="answerC" required>
-                    <label class="form-check-label" for="answerC">C</label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="answer" value="D" id="answerD" required>
-                    <label class="form-check-label" for="answerD">D</label>
-                </div>
+                {% endfor %}
                 <button type="submit" class="btn btn-primary w-100 mt-3">Gửi đáp án</button>
             </form>
         </div>
-        <div class="theta-info text-center">
+        <div class="theta-info text-center fade-in" style="animation-delay:0.5s;">
             <p>Hiện tại theta: {{ current_theta }}</p>
         </div>
     </div>
-    <!-- Bootstrap 5 JS -->
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
