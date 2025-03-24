@@ -350,14 +350,16 @@ def run_irt_mcmc(train_file, metadata_file, output_dir, num_iterations=10000, th
 # Chạy trực tiếp khi file được thực thi
 # ---------------------
 if __name__ == "__main__":
-    train_file = '/mnt/c/Users/Admin/Desktop/code python/CCAT/CCAT/data/NIPS2020/train_triples.csv'
-    metadata_file = '/mnt/c/Users/Admin/Desktop/code python/CCAT/CCAT/data/NIPS2020/metadata.json'
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    data_dir = os.path.join(base_dir, "data", "NIPS2020")
+    train_file = os.path.join(data_dir, "train_triples.csv")
+    metadata_file = os.path.join(data_dir, "metadata.json")
     output_dir = params.data_name
 
     # Sử dụng ít iteration hơn cho mục đích demo
     samples, estimates, acceptance_rates = run_irt_mcmc(
         train_file, metadata_file, output_dir,
-        num_iterations=1000, thinning=20
+        num_iterations=10000, thinning=20
     )
 
     print("Hoàn thành quá trình MCMC!")

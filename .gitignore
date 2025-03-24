@@ -1,1 +1,3 @@
-static/images/
+/__pycache__/
+/flask_session/
+
