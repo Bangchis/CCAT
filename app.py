@@ -5,7 +5,7 @@ import torch
 import random
 import pandas as pd
 import scipy.optimize
-import ast  # dùng để chuyển chuỗi "[3, 71, ...]" thành list
+import ast
 from flask import Flask, request, session, render_template, redirect, url_for
 from dataset import AdapTestDataset
 from setting import params  # Sử dụng các tham số từ setting.py
